@@ -40,6 +40,9 @@ main{max-width:860px;margin:0 auto;padding:26px 14px 20px}
 .mini{height:42px;min-width:42px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--txt);cursor:pointer;font:500 .95rem 'Raleway';padding:0 10px}
 .mini:hover{border-color:var(--gold);color:var(--gold)}
 .mini.act{background:var(--gold);color:#141414;border-color:var(--gold)}
+.mini.imp.act{background:var(--red);border-color:var(--red);color:#fff}
+.item.urgent{border-left-color:var(--red)}
+.item.urgent .nm b::after{content:" · WICHTIG";color:#ff6a73;font-size:.7rem;letter-spacing:.14em}
 select{height:42px;border:1px solid var(--line);background:#161616;color:#f6efe0;font:500 .9rem 'Raleway';padding:0 10px}
 select:focus,input:focus,textarea:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(190,159,108,.2)}
 .inote{grid-column:1/-1;width:100%;padding:10px 12px;border:1px solid var(--line);background:rgba(255,255,255,.06);font:400 .92rem 'Raleway';color:#f6efe0}
@@ -176,7 +179,6 @@ const ITEMS=[
 ["Wein","Lugana I Frati DOC – Cantina Cà dei Frati (Lombardei)","Kiste","12"],
 ["Wein","Lugana I Frati DOC Rosato – Cà dei Frati (Lombardei)","Kiste","12"],
 ["Wein","Greco di Tufo DOCG Vico Storto Nativ (Kampanien)","Kiste","6"],
-["Wein","Samas Agricola Punica IGT (Sardinien)","Kiste",""],
 ["Spirituosen","Crodino","Packung","8"],
 ["Spirituosen","SanBitter","Packung","6"],
 ["Spirituosen","Caffè-Anice","Flasche","6"],
@@ -217,7 +219,7 @@ const KEY="bs_bestellung_v1";
 const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const today=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
-let S={q:{},u:{},n:{},custom:[],by:"",date:today(),notes:""};
+let S={q:{},u:{},n:{},w:{},custom:[],by:"",date:today(),notes:""};
 try{const x=JSON.parse(localStorage.getItem(KEY)||"null");if(x)S=Object.assign(S,x);}catch(e){}
 if(!S.date)S.date=today();
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
@@ -236,11 +238,11 @@ function render(){
     const its=all().filter(i=>i.cat===c);
     return `<section class="card" id="c${ci}" data-cat="${esc(c)}"><h2>${esc(c)}<span>${its.length} Artikel</span></h2>`+its.map(it=>{
       const q=S.q[it.id]||0,n=S.n[it.id]||"";
-      return `<div class="item${q>0?" on":""}" data-id="${it.id}" data-name="${esc(it.name.toLowerCase())}">
+      return `<div class="item${q>0?" on":""}${S.w[it.id]?" urgent":""}" data-id="${it.id}" data-name="${esc(it.name.toLowerCase())}">
         <div class="nm"><b>${esc(it.name)}</b>${it.soll?`<small>Soll: ${esc(it.soll)}</small>`:""}</div>
         <div class="ctl">
           <div class="stepper"><button type="button" data-a="m" aria-label="weniger">−</button><output>${fq(q)}</output><button type="button" data-a="p" aria-label="mehr">+</button></div>
-          <button type="button" class="mini${q%1>=.5?" act":""}" data-a="h" title="halbe Einheit">½</button>
+          <button type="button" class="mini imp${S.w[it.id]?" act":""}" data-a="w" title="Wichtig – dringend kaufen">Wichtig</button>
           <select data-a="u">${opts(unitOf(it))}</select>
           <button type="button" class="mini${n?" act":""}" data-a="n" title="Notiz zum Artikel">✎</button>
         </div>
@@ -257,7 +259,7 @@ function upd(id){
   const q=S.q[id]||0;
   el.classList.toggle("on",q>0);
   el.querySelector("output").textContent=fq(q);
-  el.querySelector('[data-a="h"]').classList.toggle("act",q%1>=.5);
+  el.querySelector('[data-a="w"]').classList.toggle("act",!!S.w[id]);
   count();save();
 }
 $("list").addEventListener("click",e=>{
@@ -265,7 +267,7 @@ $("list").addEventListener("click",e=>{
   const el=b.closest(".item"),id=el.dataset.id,q=S.q[id]||0;
   if(b.dataset.a==="p")S.q[id]=q+1;
   else if(b.dataset.a==="m")S.q[id]=Math.max(0,q-1);
-  else if(b.dataset.a==="h")S.q[id]=(q%1>=.5)?q-.5:q+.5;
+  else if(b.dataset.a==="w"){S.w[id]=!S.w[id];if(S.w[id]&&!(S.q[id]>0))S.q[id]=1;b.classList.toggle("act",!!S.w[id]);el.classList.toggle("urgent",!!S.w[id]);upd(id);return;}
   else if(b.dataset.a==="n"){const i=el.querySelector(".inote");i.hidden=!i.hidden;if(!i.hidden)i.focus();return;}
   upd(id);
 });
@@ -304,17 +306,17 @@ $("cadd").addEventListener("click",()=>{
 });
 $("reset").addEventListener("click",()=>{
   if(!confirm("Alle Mengen und Notizen zurücksetzen?"))return;
-  S.q={};S.n={};S.u={};S.notes="";save();render();
+  S.q={};S.n={};S.u={};S.w={};S.notes="";save();render();
 });
 function dDE(iso){const [y,m,d]=iso.split("-");return d+"."+m+"."+y;}
 function payload(){
-  const items=all().filter(i=>(S.q[i.id]||0)>0).map(i=>({cat:i.cat,name:i.name,qty:S.q[i.id],qtyText:fq(S.q[i.id]),unit:unitOf(i),note:S.n[i.id]||""}));
+  const items=all().filter(i=>(S.q[i.id]||0)>0).map(i=>({cat:i.cat,name:i.name,qty:S.q[i.id],qtyText:fq(S.q[i.id]),unit:unitOf(i),note:S.n[i.id]||"",imp:!!S.w[i.id]}));
   return {by:S.by.trim(),date:dDE(S.date),notes:S.notes.trim(),items};
 }
 function toText(p){
   let t="BESTELLLISTE – Ristorante Buona Sera\nDatum: "+p.date+"\nGeprüft von: "+p.by+"\n";
   let cat="";
-  p.items.forEach(i=>{if(i.cat!==cat){cat=i.cat;t+="\n"+cat.toUpperCase()+"\n";}t+="• "+i.qtyText+" "+i.unit+" – "+i.name+(i.note?" ("+i.note+")":"")+"\n";});
+  p.items.forEach(i=>{if(i.cat!==cat){cat=i.cat;t+="\n"+cat.toUpperCase()+"\n";}t+="• "+(i.imp?"[WICHTIG] ":"")+i.qtyText+" "+i.unit+" – "+i.name+(i.note?" ("+i.note+")":"")+"\n";});
   if(p.notes)t+="\nNOTIZEN\n"+p.notes+"\n";
   return t;
 }
@@ -328,7 +330,7 @@ $("review").addEventListener("click",()=>{
   let cat="",h=`<h2>Liste prüfen</h2><div style="color:var(--mute);font-size:.9rem">${esc(p.date)} · geprüft von ${esc(p.by)} · ${p.items.length} Artikel</div>`;
   p.items.forEach(i=>{
     if(i.cat!==cat){if(cat)h+="</table>";cat=i.cat;h+=`<h3>${esc(cat)}</h3><table>`;}
-    h+=`<tr><td>${esc(i.name)}${i.note?`<br><small style="color:var(--mute)">${esc(i.note)}</small>`:""}</td><td>${esc(i.qtyText)} ${esc(i.unit)}</td></tr>`;
+    h+=`<tr><td>${i.imp?'<b style="color:#ff6a73">WICHTIG</b> · ':""}${esc(i.name)}${i.note?`<br><small style="color:var(--mute)">${esc(i.note)}</small>`:""}</td><td>${esc(i.qtyText)} ${esc(i.unit)}</td></tr>`;
   });
   h+="</table>";
   if(p.notes)h+=`<div class="meta"><b>Notizen:</b>\n${esc(p.notes)}</div>`;
@@ -352,7 +354,7 @@ async function send(p){
     const r=await fetch(ENDPOINT,{method:"POST",body:new URLSearchParams({data:JSON.stringify(p)})});
     const j=await r.json();
     if(!j.ok)throw new Error(j.error||"fehler");
-    S.q={};S.n={};S.notes="";save();
+    S.q={};S.n={};S.w={};S.notes="";save();
     showBox(`<div class="ok"><div class="tick">✓</div><h2>Liste gesendet!</h2><p>Die Bestellliste ist an ${TO} unterwegs.</p><div class="acts"><button class="btn" id="done" type="button">Neue Liste</button></div></div>`);
     $("done").onclick=()=>{hideBox();render();window.scrollTo({top:0});};
   }catch(e){fallback(p,"Der automatische Versand hat nicht geklappt.");}
